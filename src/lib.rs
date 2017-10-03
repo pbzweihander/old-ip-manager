@@ -36,15 +36,11 @@ pub mod ip {
 
         pub fn issue(&self, required_ports: Vec<u32>) -> Option<&Entry> {
             self.hashmap.values().find(|e| {
-                !e.using && e.mac.is_none() &&
-                    (&required_ports)
+                !e.using && e.mac.is_none()
+                    && (&required_ports)
                         .into_iter()
-                        .all(|p| e.open_ports.contains(&p))
+                        .all(|p| e.open_ports.contains(p))
             })
-        }
-
-        pub fn into_iter(&self) -> ::std::collections::hash_map::Values<String, Entry> {
-            self.hashmap.values()
         }
     }
 }
@@ -93,7 +89,8 @@ pub mod settings {
 
     #[derive(Deserialize)]
     pub struct Settings {
-        pub token: String,
+        pub verification_token: String,
+        pub bot_token: String,
     }
 
     impl Settings {

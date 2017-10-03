@@ -26,12 +26,12 @@ impl std::fmt::Display for Command {
         write!(
             f,
             "{}",
-            match self {
-                &Add => "Add",
-                &Get => "Get",
-                &Edit => "Edit",
-                &Issue => "Issue",
-                &Help => "Help",
+            match *self {
+                Add => "Add",
+                Get => "Get",
+                Edit => "Edit",
+                Issue => "Issue",
+                Help => "Help",
             }
         )
     }
@@ -75,14 +75,14 @@ fn command_request(
     settings: State<Arc<Mutex<settings::Settings>>>,
 ) -> String {
     let data = form.into_inner();
-    let s = &*settings.lock().unwrap();
-    if s.token != data.token {
+    let s: &settings::Settings = &*settings.lock().unwrap();
+    if s.verification_token != data.token {
         return "".to_owned();
     }
 
     let command = parse_command(&data.text);
     let i = &*ips.lock().unwrap();
-    do_command(command, i, &data.text)
+    do_command(&command, i, &data.text)
 }
 
 fn parse_command(content: &str) -> Command {
@@ -99,9 +99,9 @@ fn parse_command(content: &str) -> Command {
     }
 }
 
-fn do_command(command: Command, ips: &ip::List, content: &str) -> String {
+fn do_command(command: &Command, ips: &ip::List, content: &str) -> String {
     use Command::*;
-    match command {
+    match *command {
         Add => add(ips, content),
         Get => get(ips, content),
         Edit => edit(ips, content),
