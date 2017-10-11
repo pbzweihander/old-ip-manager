@@ -6,12 +6,10 @@ extern crate rocket_contrib;
 extern crate serde_json;
 extern crate toml;
 
-use std::fs;
-use std::io::Read;
 use std::sync::{Arc, Mutex};
 use rocket::request::LenientForm;
 use rocket::State;
-use ip_manager::{app, ip, settings};
+use ip_manager::{app, settings};
 use ip_manager::slack::*;
 use rocket_contrib::Json;
 
@@ -20,22 +18,8 @@ fn main() {
 }
 
 fn try_main() -> Result<(), Box<std::error::Error>> {
-    let mut ip_list = ip::List::default();
     let settings = settings::Settings::new()?;
-
-    let dir_entries: fs::ReadDir = fs::read_dir("data")?;
-    let files: Vec<fs::DirEntry> = dir_entries.map(|e| e.unwrap()).collect();
-    files
-        .into_iter()
-        .map(|f| {
-            let mut file = fs::File::open(f.path()).unwrap();
-            let mut content: String = String::new();
-            file.read_to_string(&mut content).unwrap();
-            toml::from_str(&content).unwrap()
-        })
-        .for_each(|e| ip_list.add(e));
-
-    let app = app::App::new(ip_list, settings);
+    let app = app::App::new(settings);
 
     rocket::ignite()
         .manage(Arc::new(Mutex::new(app)))

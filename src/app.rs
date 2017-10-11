@@ -18,13 +18,12 @@ pub enum Command {
 }
 
 pub struct App {
-    ip_list: ip::List,
     settings: settings::Settings,
 }
 
 impl App {
-    pub fn new(ip_list: ip::List, settings: settings::Settings) -> App {
-        App { ip_list, settings }
+    pub fn new(settings: settings::Settings) -> App {
+        App { settings }
     }
 
     pub fn handle_command(&self, command: Command, data: slash_command::Request) -> Json {
@@ -87,16 +86,17 @@ impl App {
     }
 
     pub fn get_command(&self, data: slash_command::Request) -> Result<Json, Box<Error>> {
+        use super::ip::get;
         if data.text.is_empty() {
             return Err(Box::new(::std::io::Error::new(
                 ::std::io::ErrorKind::Other,
                 "Invalid argument",
             )));
         }
-        let entry = self.ip_list.get(data.text);
+        let entry = get(&data.text);
         match entry {
-            Some(e) => Ok(serde_json::to_value(show_get_info(e))?),
-            None => Err(Box::new(::std::io::Error::new(
+            Ok(e) => Ok(serde_json::to_value(show_get_info(&e))?),
+            Err(_) => Err(Box::new(::std::io::Error::new(
                 ::std::io::ErrorKind::Other,
                 "IP not found",
             ))),

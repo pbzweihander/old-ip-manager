@@ -1,4 +1,5 @@
 extern crate serde_derive;
+extern crate toml;
 
 #[derive(Serialize, Deserialize)]
 pub struct Entry {
@@ -44,26 +45,60 @@ impl ::std::convert::Into<Entry> for RawEntry {
     }
 }
 
-#[derive(Default)]
-pub struct List {
-    hashmap: ::std::collections::HashMap<String, Entry>,
+pub fn add(entry: &Entry) -> Result<(), Box<::std::error::Error>> {
+    use std::fs::File;
+    use std::path::Path;
+    use std::io::Write;
+
+    let s = toml::to_string_pretty(entry)?;
+    let spath = format!("data/{}.toml", entry.ip);
+    let p = Path::new(&spath);
+    let mut file: File = File::create(&p)?;
+    file.write_all(s.as_bytes())?;
+
+    Ok(())
 }
 
-impl List {
-    pub fn add(&mut self, ip: Entry) {
-        self.hashmap.insert(ip.ip.clone(), ip);
-    }
+pub fn get(ip: &str) -> Result<Entry, Box<::std::error::Error>> {
+    use std::fs::File;
+    use std::path::Path;
+    use std::io::Read;
 
-    pub fn get(&self, ip: String) -> Option<&Entry> {
-        self.hashmap.get(&ip)
-    }
+    let spath = format!("data/{}.toml", ip);
+    let p = Path::new(&spath);
+    let mut file: File = File::open(&p)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    let parsed: Entry = toml::from_str(&content)?;
 
-    pub fn issue(&self, required_ports: Vec<u32>) -> Option<&Entry> {
-        self.hashmap.values().find(|e| {
+    Ok(parsed)
+}
+
+pub fn issue(required_ports: Vec<u32>) -> Result<Entry, Box<::std::error::Error>> {
+    use std::fs::{read_dir, DirEntry, File, ReadDir};
+    use std::io::Read;
+
+    let dir_entries: ReadDir = read_dir("data")?;
+    let files: Vec<DirEntry> = dir_entries.map(|e| e.unwrap()).collect();
+    let entry = files
+        .into_iter()
+        .map(|f| {
+            let mut file = File::open(f.path()).unwrap();
+            let mut content: String = String::new();
+            file.read_to_string(&mut content).unwrap();
+            toml::from_str::<Entry>(&content).unwrap()
+        })
+        .find(|e| {
             !e.using
                 && (&required_ports)
                     .into_iter()
                     .all(|p| e.open_ports.contains(p))
-        })
+        });
+    match entry {
+        Some(e) => Ok(e),
+        None => Err(Box::new(::std::io::Error::new(
+            ::std::io::ErrorKind::Other,
+            "No available IP",
+        ))),
     }
 }
