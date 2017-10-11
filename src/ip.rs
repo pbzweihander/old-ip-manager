@@ -20,14 +20,10 @@ pub struct RawEntry {
 
 impl ::std::convert::Into<Entry> for RawEntry {
     fn into(self) -> Entry {
-        let using = match self.using.as_ref() {
-            "true" => true,
-            "false" => false,
-            _ => false,
-        };
+        let using = self.using == "true";
         let open_ports = match self.open_ports {
             None => vec![],
-            Some(s) => if s.len() > 0 {
+            Some(s) => if !s.is_empty() {
                 s.split(',')
                     .map(|s| s.trim())
                     .map(|s| s.parse::<u32>())

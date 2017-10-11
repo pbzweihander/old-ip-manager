@@ -24,6 +24,22 @@ pub struct Team {
     pub domain: String,
 }
 
+#[derive(Serialize)]
+pub struct AttachedMessage {
+    pub attachments: Vec<Attachment>,
+}
+
+#[derive(Serialize)]
+pub struct Attachment {
+    pub fields: Vec<AttachmentFields>,
+}
+
+#[derive(Serialize)]
+pub struct AttachmentFields {
+    pub title: String,
+    pub value: String,
+}
+
 fn encode_url(url: String) -> String {
     url.replace(" ", "%20")
         .replace("<", "%3C")
