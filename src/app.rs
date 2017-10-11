@@ -193,7 +193,7 @@ fn add(
     dialog.elements.push(open_ports.into_json()?);
 
     let request = OpenRequest {
-        token: settings.bot_token.clone(),
+        token: settings.api_token.clone(),
         dialog,
         trigger_id: data.trigger_id,
     };

@@ -17,7 +17,7 @@ pub mod settings {
     #[derive(Deserialize)]
     pub struct Settings {
         pub verification_token: String,
-        pub bot_token: String,
+        pub api_token: String,
     }
 
     impl Settings {
