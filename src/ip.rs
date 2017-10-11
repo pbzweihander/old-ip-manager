@@ -1,7 +1,5 @@
 extern crate serde_derive;
 
-use std::collections::HashMap;
-
 #[derive(Serialize, Deserialize)]
 pub struct Entry {
     pub ip: String,
@@ -20,9 +18,39 @@ pub struct RawEntry {
     pub description: Option<String>,
 }
 
+impl ::std::convert::Into<Entry> for RawEntry {
+    fn into(self) -> Entry {
+        let using = match self.using.as_ref() {
+            "true" => true,
+            "false" => false,
+            _ => false,
+        };
+        let open_ports = match self.open_ports {
+            None => vec![],
+            Some(s) => if s.len() > 0 {
+                s.split(',')
+                    .map(|s| s.trim())
+                    .map(|s| s.parse::<u32>())
+                    .filter(|s| s.is_ok())
+                    .map(|s| s.unwrap())
+                    .collect()
+            } else {
+                vec![]
+            },
+        };
+        Entry {
+            ip: self.ip,
+            domain: self.domain,
+            using,
+            open_ports,
+            description: self.description,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct List {
-    hashmap: HashMap<String, Entry>,
+    hashmap: ::std::collections::HashMap<String, Entry>,
 }
 
 impl List {

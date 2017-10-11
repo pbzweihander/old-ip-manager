@@ -59,6 +59,5 @@ fn dialog_response(
     app: State<Arc<Mutex<app::App>>>,
 ) -> String {
     let data: dialog::Submission = serde_json::from_str(&form.into_inner().payload).unwrap();
-    println!("{:?}", &data.submission);
-    "".to_owned()
+    app.lock().unwrap().handle_submission(data)
 }

@@ -2,7 +2,7 @@ extern crate serde_json;
 
 use super::ip;
 use super::slack::slash_command;
-use super::slack::dialog::{open, Dialog, OpenRequest};
+use super::slack::dialog::{open, Dialog, OpenRequest, Submission};
 use super::slack::dialog::element::*;
 use super::settings;
 use std::error::Error;
@@ -51,6 +51,10 @@ impl App {
         do_command(&command, &self.settings, &self.ip_list, data)
     }
 
+    pub fn handle_submission(&self, submission: Submission) -> String {
+        "".to_owned()
+    }
+
     fn validate(&self, token: &str) -> bool {
         token == self.settings.verification_token
     }
@@ -78,18 +82,18 @@ fn do_command(
 ) -> String {
     use self::Command::*;
     match match *command {
-        Add => add(settings, ips, data),
-        Get => get(settings, ips, data),
-        Edit => edit(settings, ips, data),
-        Issue => issue(settings, ips, data),
-        Help => help(settings, ips, data),
+        Add => add_command(settings, ips, data),
+        Get => get_command(settings, ips, data),
+        Edit => edit_command(settings, ips, data),
+        Issue => issue_command(settings, ips, data),
+        Help => help_command(settings, ips, data),
     } {
         Ok(s) => s,
         Err(e) => format!("Error: {}", e),
     }
 }
 
-fn add(
+fn add_command(
     settings: &settings::Settings,
     _ips: &ip::List,
     data: slash_command::Request,
@@ -169,7 +173,7 @@ fn add(
     Ok("".to_owned())
 }
 
-fn get(
+fn get_command(
     settings: &settings::Settings,
     ips: &ip::List,
     data: slash_command::Request,
@@ -177,7 +181,7 @@ fn get(
     Ok("get".to_owned())
 }
 
-fn edit(
+fn edit_command(
     settings: &settings::Settings,
     ips: &ip::List,
     data: slash_command::Request,
@@ -185,7 +189,7 @@ fn edit(
     Ok("edit".to_owned())
 }
 
-fn issue(
+fn issue_command(
     settings: &settings::Settings,
     ips: &ip::List,
     data: slash_command::Request,
@@ -193,7 +197,7 @@ fn issue(
     Ok("issue".to_owned())
 }
 
-fn help(
+fn help_command(
     settings: &settings::Settings,
     ips: &ip::List,
     data: slash_command::Request,
