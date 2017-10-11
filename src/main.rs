@@ -35,7 +35,7 @@ fn add_command(
     app: State<Arc<Mutex<app::App>>>,
 ) -> Json {
     let data = form.into_inner();
-    Json(app.lock().unwrap().handle_command(app::Command::Add, data))
+    Json(app.lock().unwrap().handle_command(app::CommandType::Add, data))
 }
 
 #[post("/get", data = "<form>")]
@@ -44,7 +44,7 @@ fn get_command(
     app: State<Arc<Mutex<app::App>>>,
 ) -> Json {
     let data = form.into_inner();
-    Json(app.lock().unwrap().handle_command(app::Command::Get, data))
+    Json(app.lock().unwrap().handle_command(app::CommandType::Get, data))
 }
 
 #[post("/submission", data = "<form>")]

@@ -2,7 +2,6 @@ extern crate rocket_contrib;
 extern crate serde_derive;
 extern crate serde_json;
 
-use super::ip;
 use super::slack::slash_command;
 use super::slack::dialog::{open, Dialog, OpenRequest, Submission};
 use super::slack::dialog::element::*;
@@ -10,13 +9,12 @@ use super::settings;
 use std::error::Error;
 use serde_json::Value as Json;
 
-pub enum Command {
+pub enum CommandType {
     Add,
     Get,
     Edit,
     Issue,
 }
-
 pub struct App {
     settings: settings::Settings,
 }
@@ -26,8 +24,8 @@ impl App {
         App { settings }
     }
 
-    pub fn handle_command(&self, command: Command, data: slash_command::Request) -> Json {
-        use self::Command::*;
+    pub fn handle_command(&self, command: CommandType, data: slash_command::Request) -> Json {
+        use self::CommandType::*;
 
         if !self.validate(&data.token) {
             return json!({"text": "Error: Validation error".to_owned()});
@@ -46,7 +44,14 @@ impl App {
     }
 
     pub fn handle_submission(&self, submission: Submission) -> String {
-        "".to_owned()
+        if !self.validate(&submission.token) {
+            return "Error: Validation error".to_owned();
+        }
+
+        match submission.callback_id.as_ref() {
+            "add" => self.add_submission(submission),
+            _ => "".to_owned(),
+        }
     }
 
     fn validate(&self, token: &str) -> bool {
@@ -110,9 +115,16 @@ impl App {
     pub fn issue_command(&self, data: slash_command::Request) -> Result<String, Box<Error>> {
         Ok("issue".to_owned())
     }
+
+    fn add_submission(&self, submission: Submission) -> String {
+        use super::ip::{add, Entry};
+        let entry: Entry = submission.submission.into();
+        add(&entry).unwrap();
+        "".to_owned()
+    }
 }
 
-fn show_get_info(entry: &ip::Entry) -> ::slack::AttachedMessage {
+fn show_get_info(entry: &super::ip::Entry) -> ::slack::AttachedMessage {
     use slack::*;
     let mut m = AttachedMessage {
         attachments: vec![],
