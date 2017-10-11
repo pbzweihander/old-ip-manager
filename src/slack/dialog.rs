@@ -59,6 +59,7 @@ pub struct SubmissionError {
 pub fn open(req: OpenRequest) -> Result<(), Box<Error>> {
     let mut hm = HashMap::new();
     hm.insert("token".to_owned(), req.token);
+    println!("{}", serde_json::to_string_pretty(&req.dialog)?);
     hm.insert("dialog".to_owned(), serde_json::to_string(&req.dialog)?);
     hm.insert("trigger_id".to_owned(), req.trigger_id);
     let response: OpenResponse = request("dialog.open", hm)?;

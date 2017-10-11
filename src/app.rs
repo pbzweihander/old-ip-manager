@@ -107,28 +107,6 @@ fn add(
     };
     dialog.elements.push(ip.into_json()?);
 
-    let mac = Text {
-        label: "MAC".to_owned(),
-        name: "mac".to_owned(),
-        optional: Some(true),
-        hint: Some("맥 주소가 고정되어있지 않다면 빈칸".to_owned()),
-        subtype: None,
-        value: None,
-        placeholder: Some("Optional".to_owned()),
-    };
-    dialog.elements.push(mac.into_json()?);
-
-    let request_date = Text {
-        label: "신청 일자".to_owned(),
-        name: "request_date".to_owned(),
-        optional: None,
-        hint: None,
-        subtype: Some("date".to_owned()),
-        value: None,
-        placeholder: None,
-    };
-    dialog.elements.push(request_date.into_json()?);
-
     let domain = Text {
         label: "도메인".to_owned(),
         name: "domain".to_owned(),
@@ -140,20 +118,9 @@ fn add(
     };
     dialog.elements.push(domain.into_json()?);
 
-    let description = TextArea {
-        label: "설명".to_owned(),
-        name: "description".to_owned(),
-        optional: Some(true),
-        hint: None,
-        subtype: None,
-        value: None,
-        placeholder: Some("Optional".to_owned()),
-    };
-    dialog.elements.push(description.into_json()?);
-
     let using = Select {
-        label: "사용중".to_owned(),
-        name: "ip".to_owned(),
+        label: "사용 여부".to_owned(),
+        name: "using".to_owned(),
         optional: None,
         options: vec![
             SelectOption {
@@ -170,17 +137,6 @@ fn add(
     };
     dialog.elements.push(using.into_json()?);
 
-    let note = Text {
-        label: "비고".to_owned(),
-        name: "note".to_owned(),
-        optional: Some(true),
-        hint: None,
-        subtype: None,
-        value: None,
-        placeholder: Some("Optional".to_owned()),
-    };
-    dialog.elements.push(note.into_json()?);
-
     let open_ports = Text {
         label: "개방된 포트".to_owned(),
         name: "open_ports".to_owned(),
@@ -191,6 +147,17 @@ fn add(
         placeholder: Some("ex) 22, 80".to_owned()),
     };
     dialog.elements.push(open_ports.into_json()?);
+
+    let description = TextArea {
+        label: "설명".to_owned(),
+        name: "description".to_owned(),
+        optional: Some(true),
+        hint: None,
+        subtype: None,
+        value: None,
+        placeholder: Some("Optional".to_owned()),
+    };
+    dialog.elements.push(description.into_json()?);
 
     let request = OpenRequest {
         token: settings.api_token.clone(),
