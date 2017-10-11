@@ -11,6 +11,15 @@ pub struct Entry {
     pub description: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RawEntry {
+    pub ip: String,
+    pub domain: Option<String>,
+    pub using: String,
+    pub open_ports: Option<String>,
+    pub description: Option<String>,
+}
+
 #[derive(Default)]
 pub struct List {
     hashmap: HashMap<String, Entry>,

@@ -140,7 +140,7 @@ fn add(
     let open_ports = Text {
         label: "개방된 포트".to_owned(),
         name: "open_ports".to_owned(),
-        optional: None,
+        optional: Some(true),
         hint: Some("쉼표로 구분".to_owned()),
         subtype: None,
         value: None,

@@ -3,6 +3,7 @@ extern crate serde_json;
 use std::collections::HashMap;
 use super::{request, Channel, Team, User};
 use std::error::Error;
+use super::super::ip::RawEntry;
 
 #[derive(Serialize)]
 pub struct OpenRequest {
@@ -41,7 +42,7 @@ pub struct SubmissionResponse {
 #[derive(Deserialize)]
 pub struct Submission {
     #[serde(rename = "type")] pub submission_type: String,
-    pub submission: Vec<HashMap<String, String>>,
+    pub submission: RawEntry,
     pub callback_id: String,
     pub team: Team,
     pub user: User,
@@ -59,7 +60,6 @@ pub struct SubmissionError {
 pub fn open(req: OpenRequest) -> Result<(), Box<Error>> {
     let mut hm = HashMap::new();
     hm.insert("token".to_owned(), req.token);
-    println!("{}", serde_json::to_string_pretty(&req.dialog)?);
     hm.insert("dialog".to_owned(), serde_json::to_string(&req.dialog)?);
     hm.insert("trigger_id".to_owned(), req.trigger_id);
     let response: OpenResponse = request("dialog.open", hm)?;

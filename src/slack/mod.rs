@@ -5,7 +5,6 @@ extern crate serde_json;
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::Read;
 
 #[derive(Serialize, Deserialize)]
 pub struct Channel {
@@ -47,13 +46,9 @@ pub fn request<R: serde::de::DeserializeOwned>(
     }
     uri.pop();
 
-    let mut resp = reqwest::get(&uri)?;
-    let mut content = String::new();
-    resp.read_to_string(&mut content);
-    let parsed: R = serde_json::from_str(&content)?;
-    println!("{}", content);
+    let resp = reqwest::get(&uri)?;
 
-    // let parsed: R = serde_json::from_reader(resp)?;
+    let parsed: R = serde_json::from_reader(resp)?;
 
     Ok(parsed)
 }
