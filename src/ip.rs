@@ -1,3 +1,5 @@
+extern crate serde_derive;
+
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]

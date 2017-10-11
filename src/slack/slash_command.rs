@@ -9,6 +9,7 @@ pub struct Request {
     pub user_name: String,
     pub text: String,
     pub response_url: String,
+    pub trigger_id: String,
 }
 
 #[derive(Serialize)]

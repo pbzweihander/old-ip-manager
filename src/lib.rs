@@ -9,7 +9,7 @@ pub mod app;
 
 pub mod ip;
 
-pub mod slash_command;
+pub mod slack;
 
 pub mod settings {
     extern crate config;
