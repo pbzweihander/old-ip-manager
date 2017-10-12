@@ -3,9 +3,6 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
-use std::collections::HashMap;
-use std::error::Error;
-
 #[derive(Serialize, Deserialize)]
 pub struct Channel {
     pub id: String,
@@ -40,8 +37,9 @@ pub struct AttachmentFields {
     pub value: String,
 }
 
-fn encode_url(url: String) -> String {
-    url.replace(" ", "%20")
+fn encode_url(url: &str) -> String {
+    url.to_owned()
+        .replace(" ", "%20")
         .replace("<", "%3C")
         .replace(">", "%3E")
         .replace("#", "%23")
@@ -49,15 +47,15 @@ fn encode_url(url: String) -> String {
 
 pub fn request<R: serde::de::DeserializeOwned>(
     api: &str,
-    argument: HashMap<String, String>,
-) -> Result<R, Box<Error>> {
+    argument: &::std::collections::HashMap<String, String>,
+) -> Result<R, Box<::std::error::Error>> {
     let mut uri = String::from("https://slack.com/api/");
     uri.push_str(api);
     uri.push('?');
-    for (key, val) in &argument {
+    for (key, val) in argument {
         uri.push_str(key);
         uri.push('=');
-        uri.push_str(&encode_url(val.to_owned()));
+        uri.push_str(&encode_url(val));
         uri.push('&');
     }
     uri.pop();

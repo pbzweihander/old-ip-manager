@@ -1,10 +1,5 @@
 extern crate serde_json;
 
-use std::collections::HashMap;
-use super::{request, Channel, Team, User};
-use std::error::Error;
-use super::super::ip::RawEntry;
-
 #[derive(Serialize)]
 pub struct OpenRequest {
     pub token: String,
@@ -42,11 +37,11 @@ pub struct SubmissionResponse {
 #[derive(Deserialize)]
 pub struct Submission {
     #[serde(rename = "type")] pub submission_type: String,
-    pub submission: RawEntry,
+    pub submission: ::ip::RawEntry,
     pub callback_id: String,
-    pub team: Team,
-    pub user: User,
-    pub channel: Channel,
+    pub team: super::Team,
+    pub user: super::User,
+    pub channel: super::Channel,
     pub action_ts: String,
     pub token: String,
 }
@@ -57,12 +52,12 @@ pub struct SubmissionError {
     pub error: String,
 }
 
-pub fn open(req: OpenRequest) -> Result<(), Box<Error>> {
-    let mut hm = HashMap::new();
+pub fn open(req: OpenRequest) -> Result<(), Box<::std::error::Error>> {
+    let mut hm = ::std::collections::HashMap::new();
     hm.insert("token".to_owned(), req.token);
     hm.insert("dialog".to_owned(), serde_json::to_string(&req.dialog)?);
     hm.insert("trigger_id".to_owned(), req.trigger_id);
-    let response: OpenResponse = request("dialog.open", hm)?;
+    let response: OpenResponse = super::request("dialog.open", &hm)?;
 
     if !response.ok {
         return Err(Box::new(::std::io::Error::new(
@@ -81,11 +76,27 @@ pub mod element {
     use self::serde_json::Map;
     use self::serde_json::Result;
 
-    pub trait Element {
-        fn into_json(self) -> Result<Value>;
+    // pub trait Element {
+    //     fn into_json(self) -> Result<Value>;
+    // }
+
+    pub enum Element {
+        Text(TextElement),
+        TextArea(TextAreaElement),
+        Select(SelectElement),
     }
 
-    pub struct Text {
+    impl Element {
+        pub fn into_json(self) -> Result<Value> {
+            match self {
+                Element::Text(e) => e.into_json(),
+                Element::TextArea(e) => e.into_json(),
+                Element::Select(e) => e.into_json(),
+            }
+        }
+    }
+
+    pub struct TextElement {
         pub label: String,
         pub name: String,
         pub optional: Option<bool>,
@@ -95,7 +106,7 @@ pub mod element {
         pub placeholder: Option<String>,
     }
 
-    impl Element for Text {
+    impl TextElement {
         fn into_json(self) -> Result<Value> {
             let mut map = Map::new();
             map.insert("label".to_owned(), serde_json::to_value(self.label)?);
@@ -123,7 +134,7 @@ pub mod element {
         }
     }
 
-    pub struct TextArea {
+    pub struct TextAreaElement {
         pub label: String,
         pub name: String,
         pub optional: Option<bool>,
@@ -133,7 +144,7 @@ pub mod element {
         pub placeholder: Option<String>,
     }
 
-    impl Element for TextArea {
+    impl TextAreaElement {
         fn into_json(self) -> Result<Value> {
             let mut map = Map::new();
             map.insert("label".to_owned(), serde_json::to_value(self.label)?);
@@ -161,12 +172,12 @@ pub mod element {
         }
     }
 
-    pub struct Select {
+    pub struct SelectElement {
         pub label: String,
         pub name: String,
         pub optional: Option<bool>,
         pub options: Vec<SelectOption>,
-        pub value: String,
+        pub value: Option<String>,
         pub placeholder: Option<String>,
     }
 
@@ -176,7 +187,7 @@ pub mod element {
         pub value: String,
     }
 
-    impl Element for Select {
+    impl SelectElement {
         fn into_json(self) -> Result<Value> {
             let mut map = Map::new();
             map.insert("label".to_owned(), serde_json::to_value(self.label)?);

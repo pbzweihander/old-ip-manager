@@ -59,22 +59,25 @@ pub fn add(entry: &Entry) -> Result<(), Box<::std::error::Error>> {
     Ok(())
 }
 
-pub fn get(ip: &str) -> Result<Entry, Box<::std::error::Error>> {
+pub fn get(ip: &str) -> Option<Entry> {
     use std::fs::File;
     use std::path::Path;
     use std::io::Read;
 
     let spath = format!("data/{}.toml", ip);
     let p = Path::new(&spath);
-    let mut file: File = File::open(&p)?;
+    let mut file: File = match File::open(&p) {
+        Ok(f) => f,
+        Err(_) => return None,
+    };
     let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    let parsed: Entry = toml::from_str(&content)?;
-
-    Ok(parsed)
+    if file.read_to_string(&mut content).is_err() {
+        return None;
+    }
+    toml::from_str(&content).ok()
 }
 
-pub fn issue(required_ports: Vec<u32>) -> Result<Entry, Box<::std::error::Error>> {
+pub fn issue(required_ports: &[u32]) -> Result<Entry, Box<::std::error::Error>> {
     use std::fs::{read_dir, DirEntry, File, ReadDir};
     use std::io::Read;
 
@@ -89,10 +92,7 @@ pub fn issue(required_ports: Vec<u32>) -> Result<Entry, Box<::std::error::Error>
             toml::from_str::<Entry>(&content).unwrap()
         })
         .find(|e| {
-            !e.using
-                && (&required_ports)
-                    .into_iter()
-                    .all(|p| e.open_ports.contains(p))
+            !e.using && required_ports.into_iter().all(|p| e.open_ports.contains(p))
         });
     match entry {
         Some(e) => Ok(e),

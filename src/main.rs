@@ -9,49 +9,43 @@ extern crate toml;
 use std::sync::{Arc, Mutex};
 use rocket::request::LenientForm;
 use rocket::State;
-use ip_manager::{app, settings};
-use ip_manager::slack::*;
-use rocket_contrib::Json;
+use ip_manager::settings::Settings;
+use ip_manager::{handle_command, handle_submission};
+use ip_manager::slack::slash_command::Request;
+use ip_manager::slack::dialog::{Submission, SubmissionResponse};
 
 fn main() {
     try_main().unwrap();
 }
 
 fn try_main() -> Result<(), Box<std::error::Error>> {
-    let settings = settings::Settings::new()?;
-    let app = app::App::new(settings);
+    let settings = Settings::new()?;
 
     rocket::ignite()
-        .manage(Arc::new(Mutex::new(app)))
-        .mount("/ip-manager/command", routes![add_command, get_command])
-        .mount("/ip-manager", routes![dialog_response])
+        .manage(Arc::new(Mutex::new(settings)))
+        .mount("/ip-manager/command", routes![command_request])
+        .mount("/ip-manager/submission", routes![dialog_response])
         .launch();
     Ok(())
 }
 
-#[post("/add", data = "<form>")]
-fn add_command(
-    form: LenientForm<slash_command::Request>,
-    app: State<Arc<Mutex<app::App>>>,
-) -> Json {
+#[post("/<command>", data = "<form>")]
+fn command_request(
+    command: String,
+    form: LenientForm<Request>,
+    settings: State<Arc<Mutex<Settings>>>,
+) -> Result<rocket_contrib::Json, Box<std::error::Error>> {
     let data = form.into_inner();
-    Json(app.lock().unwrap().handle_command(app::CommandType::Add, data))
+    let json = handle_command(&settings.lock().unwrap(), &command, data)?;
+    Ok(rocket_contrib::Json(json))
 }
 
-#[post("/get", data = "<form>")]
-fn get_command(
-    form: LenientForm<slash_command::Request>,
-    app: State<Arc<Mutex<app::App>>>,
-) -> Json {
-    let data = form.into_inner();
-    Json(app.lock().unwrap().handle_command(app::CommandType::Get, data))
-}
-
-#[post("/submission", data = "<form>")]
+#[post("/", data = "<form>")]
 fn dialog_response(
-    form: LenientForm<dialog::SubmissionResponse>,
-    app: State<Arc<Mutex<app::App>>>,
-) -> String {
-    let data: dialog::Submission = serde_json::from_str(&form.into_inner().payload).unwrap();
-    app.lock().unwrap().handle_submission(data)
+    form: LenientForm<SubmissionResponse>,
+    settings: State<Arc<Mutex<Settings>>>,
+) -> Result<String, Box<std::error::Error>> {
+    let data: Submission = serde_json::from_str(&form.into_inner().payload).unwrap();
+    let result = handle_submission(&settings.lock().unwrap(), data)?;
+    Ok(result)
 }
