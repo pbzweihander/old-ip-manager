@@ -46,6 +46,6 @@ fn dialog_response(
     settings: State<Arc<Mutex<Settings>>>,
 ) -> Result<String, Box<std::error::Error>> {
     let data: Submission = serde_json::from_str(&form.into_inner().payload).unwrap();
-    let result = handle_submission(&settings.lock().unwrap(), data)?;
-    Ok(result)
+    handle_submission(&settings.lock().unwrap(), data)?;
+    Ok("".to_owned())
 }

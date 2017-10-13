@@ -42,7 +42,7 @@ pub fn handle_command(
     data: slack::slash_command::Request,
 ) -> Result<serde_json::Value, Box<std::error::Error>> {
     if settings.verification_token != data.token {
-        return Ok(json!({"text": "Validation error".to_owned()}));
+        return Err(From::from("Validation error".to_owned()))
     }
 
     let result = match command {
@@ -66,9 +66,9 @@ pub fn handle_command(
 pub fn handle_submission(
     settings: &settings::Settings,
     submission: slack::dialog::Submission,
-) -> Result<String, Box<std::error::Error>> {
+) -> Result<(), Box<std::error::Error>> {
     if settings.verification_token != submission.token {
-        return Ok("Validation error".to_owned());
+        return Err(From::from("Validation error".to_owned()))
     }
 
     match submission.callback_id.as_ref() {
@@ -109,20 +109,18 @@ fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     Ok(Response::Dialog(generate_edit_dialog(entry)))
 }
 
-fn add_submission(submission: slack::dialog::Submission) -> Result<String, Box<std::error::Error>> {
+fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
     add(&entry)?;
-    Ok(format!("IP {} added!", entry.ip))
+    Ok(())
 }
 
-fn edit_submission(
-    submission: slack::dialog::Submission,
-) -> Result<String, Box<std::error::Error>> {
+fn edit_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
     add(&entry)?;
-    Ok(format!("IP {} added!", entry.ip))
+    Ok(())
 }
 
 fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
