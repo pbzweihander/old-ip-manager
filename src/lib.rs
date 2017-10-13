@@ -30,7 +30,9 @@ pub mod settings {
 }
 
 pub enum Response {
-    Text(String),
+    PlainText(String),
+    Dialog(slack::dialog::Dialog),
+    AttachedMessage(slack::AttachedMessage),
     Json(serde_json::Value),
 }
 
@@ -44,13 +46,19 @@ pub fn handle_command(
     }
 
     let result = match command {
-        "add" => add_command(settings, data),
-        "get" => get_command(&data),
-        _ => Ok(Response::Text("Nope".to_owned())),
+        "add" => add_command(),
+        "get" => get_command(&data.text),
+        "edit" => edit_command(&data.text),
+        _ => Err(From::from(format!("No such command: {}", command))),
     }?;
 
     match result {
-        Response::Text(t) => Ok(json!({ "text": t })),
+        Response::PlainText(t) => Ok(json!({ "text": t })),
+        Response::Dialog(d) => {
+            show_dialog(&settings.api_token, d, &data.trigger_id)?;
+            Ok(json!({ "text": "Dialog opened!" }))
+        }
+        Response::AttachedMessage(m) => Ok(serde_json::to_value(m)?),
         Response::Json(j) => Ok(j),
     }
 }
@@ -65,69 +73,59 @@ pub fn handle_submission(
 
     match submission.callback_id.as_ref() {
         "add" => add_submission(submission),
-        _ => Ok("".to_owned()),
+        "edit" => edit_submission(submission),
+        _ => Err(From::from(
+            format!("No such submission: {}", submission.callback_id),
+        )),
     }
 }
 
-fn add_command(
-    settings: &settings::Settings,
-    data: slack::slash_command::Request,
-) -> Result<Response, Box<std::error::Error>> {
-    show_add_dialog(settings, data)?;
-    Ok(Response::Text("Dialog opend!".to_owned()))
+fn add_command() -> Result<Response, Box<std::error::Error>> {
+    Ok(Response::Dialog(generate_add_dialog()))
 }
 
-fn show_add_dialog(
-    settings: &settings::Settings,
-    data: slack::slash_command::Request,
-) -> Result<(), Box<std::error::Error>> {
-    use slack::dialog::*;
-    let mut dialog = Dialog::new("add".to_owned(), "IP 추가".to_owned());
-
-    dialog.elements.push(generate_ip_text(None).into_json()?);
-    dialog
-        .elements
-        .push(generate_domain_text(None).into_json()?);
-    dialog
-        .elements
-        .push(generate_using_select(None).into_json()?);
-    dialog
-        .elements
-        .push(generate_open_ports_text(None).into_json()?);
-    dialog
-        .elements
-        .push(generate_description_textarea(None).into_json()?);
-
-    let request = OpenRequest {
-        token: settings.api_token.clone(),
-        dialog,
-        trigger_id: data.trigger_id,
-    };
-    open(request)?;
-
-    Ok(())
-}
-
-fn get_command(data: &slack::slash_command::Request) -> Result<Response, Box<std::error::Error>> {
+fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
-    if data.text.is_empty() {
-        return Ok(Response::Text("Validation error".to_owned()));
+    if query.is_empty() {
+        return Ok(Response::PlainText("Validation error".to_owned()));
     }
-    let entry = get(&data.text);
+    let entry = get(query);
     match entry {
-        Some(e) => Ok(Response::Json(serde_json::to_value(show_get_info(&e))?)),
-        None => Ok(Response::Text("IP not found".to_owned())),
+        Some(e) => Ok(Response::AttachedMessage(generate_get_message(e))),
+        None => Ok(Response::PlainText("IP not found".to_owned())),
     }
+}
+
+fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+    use ip::get;
+    if query.is_empty() {
+        return Ok(Response::PlainText("Validation error".to_owned()));
+    }
+    let entry = match get(query) {
+        None => return Ok(Response::PlainText("IP not found".to_owned())),
+        Some(e) => e,
+    };
+
+    Ok(Response::Dialog(generate_edit_dialog(entry)))
 }
 
 fn add_submission(submission: slack::dialog::Submission) -> Result<String, Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
     add(&entry)?;
-    Ok("".to_owned())
+    Ok(format!("IP {} added!", entry.ip))
 }
 
-fn show_get_info(entry: &ip::Entry) -> slack::AttachedMessage {
+fn edit_submission(
+    submission: slack::dialog::Submission,
+) -> Result<String, Box<std::error::Error>> {
+    use ip::{add, Entry};
+    let entry: Entry = submission.submission.into();
+    add(&entry)?;
+    Ok(format!("IP {} added!", entry.ip))
+}
+
+fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
     use slack::*;
     let mut m = AttachedMessage {
         attachments: vec![],
@@ -136,12 +134,12 @@ fn show_get_info(entry: &ip::Entry) -> slack::AttachedMessage {
 
     a.fields.push(AttachmentFields {
         title: "IP".to_owned(),
-        value: entry.ip.clone(),
+        value: entry.ip,
     });
-    if let Some(ref domain) = entry.domain {
+    if let Some(domain) = entry.domain {
         a.fields.push(AttachmentFields {
             title: "도메인".to_owned(),
-            value: domain.clone(),
+            value: domain,
         });
     }
     a.fields.push(AttachmentFields {
@@ -155,25 +153,99 @@ fn show_get_info(entry: &ip::Entry) -> slack::AttachedMessage {
 
     if !entry.open_ports.is_empty() {
         let mut s = String::new();
-        for p in &entry.open_ports {
+        for p in entry.open_ports {
             s.push_str(&format!("{}, ", p));
         }
         s.pop();
         s.pop();
-        s.push('\n');
         a.fields.push(AttachmentFields {
             title: "개방 포트".to_owned(),
             value: s,
         });
     }
-    if let Some(ref description) = entry.description {
+    if let Some(description) = entry.description {
         a.fields.push(AttachmentFields {
             title: "설명".to_owned(),
-            value: description.clone(),
+            value: description,
         });
     }
     m.attachments.push(a);
     m
+}
+
+fn show_dialog(
+    token: &str,
+    dialog: slack::dialog::Dialog,
+    trigger_id: &str,
+) -> Result<(), Box<std::error::Error>> {
+    let request = slack::dialog::OpenRequest {
+        token: token.to_owned(),
+        dialog,
+        trigger_id: trigger_id.to_owned(),
+    };
+    slack::dialog::open(request)?;
+    Ok(())
+}
+
+fn generate_add_dialog() -> slack::dialog::Dialog {
+    let mut dialog = slack::dialog::Dialog::new("add".to_owned(), "IP 추가".to_owned());
+
+    dialog
+        .elements
+        .push(generate_ip_text(None).into_json().unwrap());
+    dialog
+        .elements
+        .push(generate_domain_text(None).into_json().unwrap());
+    dialog
+        .elements
+        .push(generate_using_select(None).into_json().unwrap());
+    dialog
+        .elements
+        .push(generate_open_ports_text(None).into_json().unwrap());
+    dialog
+        .elements
+        .push(generate_description_textarea(None).into_json().unwrap());
+
+    dialog
+}
+
+fn generate_edit_dialog(entry: ip::Entry) -> slack::dialog::Dialog {
+    let mut dialog = slack::dialog::Dialog::new("edit".to_owned(), "IP 수정".to_owned());
+
+    dialog
+        .elements
+        .push(generate_ip_text(Some(entry.ip)).into_json().unwrap());
+    dialog
+        .elements
+        .push(generate_domain_text(entry.domain).into_json().unwrap());
+    dialog.elements.push(
+        generate_using_select(Some(if entry.using { "true" } else { "false" }.to_owned()))
+            .into_json()
+            .unwrap(),
+    );
+    dialog.elements.push(
+        generate_open_ports_text({
+            if !entry.open_ports.is_empty() {
+                let mut s = String::new();
+                for p in entry.open_ports {
+                    s.push_str(&format!("{}, ", p));
+                }
+                s.pop();
+                s.pop();
+                Some(s)
+            } else {
+                None
+            }
+        }).into_json()
+            .unwrap(),
+    );
+    dialog.elements.push(
+        generate_description_textarea(entry.description)
+            .into_json()
+            .unwrap(),
+    );
+
+    dialog
 }
 
 fn generate_ip_text(value: Option<String>) -> slack::dialog::element::Element {
