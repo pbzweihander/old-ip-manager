@@ -42,13 +42,14 @@ pub fn handle_command(
     data: slack::slash_command::Request,
 ) -> Result<serde_json::Value, Box<std::error::Error>> {
     if settings.verification_token != data.token {
-        return Err(From::from("Validation error".to_owned()))
+        return Err(From::from("Invalid token".to_owned()));
     }
 
     let result = match command {
         "add" => add_command(),
         "get" => get_command(&data.text),
         "edit" => edit_command(&data.text),
+        "list" => list_command(&data.text),
         _ => Err(From::from(format!("No such command: {}", command))),
     }?;
 
@@ -68,7 +69,10 @@ pub fn handle_submission(
     submission: slack::dialog::Submission,
 ) -> Result<(), Box<std::error::Error>> {
     if settings.verification_token != submission.token {
-        return Err(From::from("Validation error".to_owned()))
+        return Err(From::from("Invalid token".to_owned()));
+    }
+    if submission.submission_type != "dialog_submission" {
+        return Err(From::from("Invalid submission".to_owned()));
     }
 
     match submission.callback_id.as_ref() {
@@ -87,7 +91,7 @@ fn add_command() -> Result<Response, Box<std::error::Error>> {
 fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
     if query.is_empty() {
-        return Ok(Response::PlainText("Validation error".to_owned()));
+        return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
     let entry = get(query);
     match entry {
@@ -99,7 +103,7 @@ fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
 fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
     if query.is_empty() {
-        return Ok(Response::PlainText("Validation error".to_owned()));
+        return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
     let entry = match get(query) {
         None => return Ok(Response::PlainText("IP not found".to_owned())),
@@ -107,6 +111,15 @@ fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     };
 
     Ok(Response::Dialog(generate_edit_dialog(entry)))
+}
+
+fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+    use ip::list;
+    let entries = list(query);
+    if entries.is_empty() {
+        return Ok(Response::PlainText("IP not found".to_owned()));
+    }
+    Ok(Response::AttachedMessage(generate_list_message(entries)))
 }
 
 fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
@@ -165,6 +178,30 @@ fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
         a.fields.push(AttachmentFields {
             title: "설명".to_owned(),
             value: description,
+        });
+    }
+    m.attachments.push(a);
+    m
+}
+
+fn generate_list_message(entries: Vec<ip::Entry>) -> slack::AttachedMessage {
+    use slack::*;
+    let mut m = AttachedMessage {
+        attachments: vec![],
+    };
+    let mut a = Attachment { fields: vec![] };
+
+    for e in entries {
+        a.fields.push(AttachmentFields {
+            title: e.ip,
+            value: {
+                let mut s = String::new();
+                if let Some(domain) = e.domain {
+                    s.push_str(&format!("{}\n", domain));
+                }
+                s.push_str(if e.using { "사용중" } else { "미사용" });
+                s
+            },
         });
     }
     m.attachments.push(a);

@@ -77,12 +77,41 @@ pub fn get(ip: &str) -> Option<Entry> {
     toml::from_str(&content).ok()
 }
 
+pub fn list(query: &str) -> Vec<Entry> {
+    use std::fs::{read_dir, DirEntry, File, ReadDir};
+    use std::io::Read;
+
+    let dir_entries: ReadDir = match read_dir("data") {
+        Ok(d) => d,
+        Err(_) => return vec![],
+    };
+    let files: Vec<DirEntry> = dir_entries
+        .filter(|e| e.is_ok())
+        .map(|e| e.unwrap())
+        .collect();
+    let entries = files.into_iter().map(|f| {
+        let mut file = File::open(f.path()).unwrap();
+        let mut content: String = String::new();
+        file.read_to_string(&mut content).unwrap();
+        toml::from_str::<Entry>(&content).unwrap()
+    });
+    let entries: Vec<Entry> = if !query.is_empty() {
+        entries.filter(|e| e.ip.contains(query)).take(8).collect()
+    } else {
+        entries.take(8).collect()
+    };
+    entries
+}
+
 pub fn issue(required_ports: &[u32]) -> Result<Entry, Box<::std::error::Error>> {
     use std::fs::{read_dir, DirEntry, File, ReadDir};
     use std::io::Read;
 
     let dir_entries: ReadDir = read_dir("data")?;
-    let files: Vec<DirEntry> = dir_entries.map(|e| e.unwrap()).collect();
+    let files: Vec<DirEntry> = dir_entries
+        .filter(|e| e.is_ok())
+        .map(|e| e.unwrap())
+        .collect();
     let entry = files
         .into_iter()
         .map(|f| {
