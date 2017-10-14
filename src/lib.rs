@@ -119,7 +119,9 @@ fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     if entries.is_empty() {
         return Ok(Response::PlainText("IP not found".to_owned()));
     }
-    Ok(Response::AttachedMessage(generate_list_message(entries)))
+    Ok(Response::AttachedMessage(
+        generate_list_message(query, entries),
+    ))
 }
 
 fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
@@ -141,7 +143,10 @@ fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
     let mut m = AttachedMessage {
         attachments: vec![],
     };
-    let mut a = Attachment { fields: vec![] };
+    let mut a = Attachment {
+        title: format!("IP {}의 정보", entry.ip),
+        fields: vec![],
+    };
     let joined_ports = entry.ports_as_string();
 
     a.fields.push(AttachmentFields {
@@ -179,12 +184,19 @@ fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
     m
 }
 
-fn generate_list_message(queries: Vec<ip::Query>) -> slack::AttachedMessage {
+fn generate_list_message(query: &str, queries: Vec<ip::Query>) -> slack::AttachedMessage {
     use slack::*;
     let mut m = AttachedMessage {
         attachments: vec![],
     };
-    let mut a = Attachment { fields: vec![] };
+    let mut a = Attachment {
+        title: if query.is_empty() {
+            "IP 목록".to_owned()
+        } else {
+            format!("{}의 검색 결과", query)
+        },
+        fields: vec![],
+    };
 
     for q in queries {
         a.fields.push(AttachmentFields {

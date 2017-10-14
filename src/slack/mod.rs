@@ -28,6 +28,7 @@ pub struct AttachedMessage {
 
 #[derive(Serialize)]
 pub struct Attachment {
+    pub title: String,
     pub fields: Vec<AttachmentFields>,
 }
 
