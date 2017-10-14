@@ -142,6 +142,7 @@ fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
         attachments: vec![],
     };
     let mut a = Attachment { fields: vec![] };
+    let joined_ports = entry.ports_as_string();
 
     a.fields.push(AttachmentFields {
         title: "IP".to_owned(),
@@ -163,15 +164,9 @@ fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
     });
 
     if !entry.open_ports.is_empty() {
-        let mut s = String::new();
-        for p in entry.open_ports {
-            s.push_str(&format!("{}, ", p));
-        }
-        s.pop();
-        s.pop();
         a.fields.push(AttachmentFields {
             title: "개방 포트".to_owned(),
-            value: s,
+            value: joined_ports,
         });
     }
     if let Some(description) = entry.description {
@@ -184,24 +179,17 @@ fn generate_get_message(entry: ip::Entry) -> slack::AttachedMessage {
     m
 }
 
-fn generate_list_message(entries: Vec<ip::Entry>) -> slack::AttachedMessage {
+fn generate_list_message(queries: Vec<ip::Query>) -> slack::AttachedMessage {
     use slack::*;
     let mut m = AttachedMessage {
         attachments: vec![],
     };
     let mut a = Attachment { fields: vec![] };
 
-    for e in entries {
+    for q in queries {
         a.fields.push(AttachmentFields {
-            title: e.ip,
-            value: {
-                let mut s = String::new();
-                if let Some(domain) = e.domain {
-                    s.push_str(&format!("{}\n", domain));
-                }
-                s.push_str(if e.using { "사용중" } else { "미사용" });
-                s
-            },
+            title: q.ip,
+            value: q.element,
         });
     }
     m.attachments.push(a);
@@ -246,6 +234,7 @@ fn generate_add_dialog() -> slack::dialog::Dialog {
 
 fn generate_edit_dialog(entry: ip::Entry) -> slack::dialog::Dialog {
     let mut dialog = slack::dialog::Dialog::new("edit".to_owned(), "IP 수정".to_owned());
+    let joined_ports = entry.ports_as_string();
 
     dialog
         .elements
@@ -261,13 +250,7 @@ fn generate_edit_dialog(entry: ip::Entry) -> slack::dialog::Dialog {
     dialog.elements.push(
         generate_open_ports_text({
             if !entry.open_ports.is_empty() {
-                let mut s = String::new();
-                for p in entry.open_ports {
-                    s.push_str(&format!("{}, ", p));
-                }
-                s.pop();
-                s.pop();
-                Some(s)
+                Some(joined_ports)
             } else {
                 None
             }

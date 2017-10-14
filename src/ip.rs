@@ -10,6 +10,18 @@ pub struct Entry {
     pub description: Option<String>,
 }
 
+impl Entry {
+    pub fn ports_as_string(&self) -> String {
+        let mut s = String::new();
+        for p in &self.open_ports {
+            s.push_str(&format!("{}, ", p));
+        }
+        s.pop();
+        s.pop();
+        s
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawEntry {
     pub ip: String,
@@ -17,6 +29,11 @@ pub struct RawEntry {
     pub using: String,
     pub open_ports: Option<String>,
     pub description: Option<String>,
+}
+
+pub struct Query {
+    pub ip: String,
+    pub element: String,
 }
 
 impl ::std::convert::Into<Entry> for RawEntry {
@@ -77,7 +94,7 @@ pub fn get(ip: &str) -> Option<Entry> {
     toml::from_str(&content).ok()
 }
 
-pub fn list(query: &str) -> Vec<Entry> {
+pub fn list(query: &str) -> Vec<Query> {
     use std::fs::{read_dir, DirEntry, File, ReadDir};
     use std::io::Read;
 
@@ -95,12 +112,88 @@ pub fn list(query: &str) -> Vec<Entry> {
         file.read_to_string(&mut content).unwrap();
         toml::from_str::<Entry>(&content).unwrap()
     });
-    let entries: Vec<Entry> = if !query.is_empty() {
-        entries.filter(|e| e.ip.contains(query)).take(8).collect()
+    let entries: Vec<Query> = if !query.is_empty() {
+        entries
+            .filter_map(|e| {
+                query
+                    .split(' ')
+                    .filter(|q| !q.is_empty())
+                    .filter_map(|q| generate_query(&e, q))
+                    .next()
+            })
+            .take(8)
+            .collect()
     } else {
-        entries.take(8).collect()
+        entries
+            .map(|e| {
+                Query {
+                    ip: e.ip.clone(),
+                    element: {
+                        let mut s = String::new();
+                        if let Some(ref domain) = e.domain {
+                            s.push_str(domain);
+                            s.push_str("\n");
+                        }
+                        s.push_str(if e.using { "사용중" } else { "미사용" });
+                        s
+                    },
+                }
+            })
+            .take(8)
+            .collect()
     };
     entries
+}
+
+fn generate_query(entry: &Entry, q: &str) -> Option<Query> {
+    if entry.ip.contains(q) {
+        Some(Query {
+            ip: entry.ip.clone(),
+            element: {
+                let mut s = String::new();
+                if let Some(ref domain) = entry.domain {
+                    s.push_str(domain);
+                    s.push_str("\n");
+                }
+                s.push_str(if entry.using {
+                    "사용중"
+                } else {
+                    "미사용"
+                });
+                s
+            },
+        })
+    } else if entry.domain.is_some() && entry.domain.as_ref().unwrap().contains(q) {
+        Some(Query {
+            ip: entry.ip.clone(),
+            element: entry.domain.as_ref().unwrap().clone(),
+        })
+    } else if entry.using && q == "사용중" {
+        Some(Query {
+            ip: entry.ip.clone(),
+            element: "사용중".to_owned(),
+        })
+    } else if !entry.using && q == "미사용" {
+        Some(Query {
+            ip: entry.ip.clone(),
+            element: "미사용".to_owned(),
+        })
+    } else if {
+        let i = q.parse::<u32>();
+        i.is_ok() && entry.open_ports.contains(&i.unwrap())
+    } {
+        Some(Query {
+            ip: entry.ip.clone(),
+            element: entry.ports_as_string(),
+        })
+    } else if entry.description.is_some() && entry.description.as_ref().unwrap().contains(q) {
+        Some(Query {
+            ip: entry.ip.clone(),
+            element: entry.description.as_ref().unwrap().clone(),
+        })
+    } else {
+        None
+    }
 }
 
 pub fn issue(required_ports: &[u32]) -> Result<Entry, Box<::std::error::Error>> {
