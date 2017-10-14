@@ -1,5 +1,7 @@
 #![feature(plugin, custom_derive, decl_macro)]
 #![plugin(rocket_codegen)]
+#[macro_use]
+extern crate lazy_static;
 extern crate rocket;
 extern crate rocket_contrib;
 #[macro_use]
@@ -8,9 +10,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 pub mod ip;
-
 pub mod slack;
-
 pub mod settings {
     extern crate config;
 
@@ -37,6 +37,22 @@ pub mod settings {
     }
 }
 
+use std::sync::RwLock;
+
+lazy_static! {
+    static ref SETTINGS: RwLock<settings::Settings> = RwLock::new(match settings::Settings::new() {
+        Ok(s) => s,
+        Err(e) => panic!("Settings file parse error!, {}", e)
+    });
+}
+
+pub fn validate_data_path() {
+    use std::fs::read_dir;
+    if read_dir(&SETTINGS.read().unwrap().data_path).is_err() {
+        panic!("Invalid data folder. Check settings file!");
+    }
+}
+
 pub enum Response {
     PlainText(String),
     Dialog(slack::dialog::Dialog),
@@ -45,27 +61,26 @@ pub enum Response {
 }
 
 pub fn handle_command(
-    settings: &settings::Settings,
     command: &str,
     data: slack::slash_command::Request,
 ) -> Result<serde_json::Value, Box<std::error::Error>> {
-    if settings.verification_token != data.token {
+    if SETTINGS.read()?.verification_token != data.token {
         return Err(From::from("Invalid token".to_owned()));
     }
 
     let result = match command {
         "add" => add_command(),
-        "get" => get_command(settings, &data.text),
-        "edit" => edit_command(settings, &data.text),
-        "list" => list_command(settings, &data.text),
-        "issue" => issue_command(settings, &data.text),
+        "get" => get_command(&data.text),
+        "edit" => edit_command(&data.text),
+        "list" => list_command(&data.text),
+        "issue" => issue_command(&data.text),
         _ => Err(From::from(format!("No such command: {}", command))),
     }?;
 
     match result {
         Response::PlainText(t) => Ok(json!({ "text": t })),
         Response::Dialog(d) => {
-            show_dialog(&settings.api_token, d, &data.trigger_id)?;
+            show_dialog(&SETTINGS.read()?.api_token, d, &data.trigger_id)?;
             Ok(json!({ "text": "Dialog opened!" }))
         }
         Response::AttachedMessage(m) => Ok(serde_json::to_value(m)?),
@@ -74,10 +89,9 @@ pub fn handle_command(
 }
 
 pub fn handle_submission(
-    settings: &settings::Settings,
     submission: slack::dialog::Submission,
 ) -> Result<(), Box<std::error::Error>> {
-    if settings.verification_token != submission.token {
+    if SETTINGS.read()?.verification_token != submission.token {
         return Err(From::from("Invalid token".to_owned()));
     }
     if submission.submission_type != "dialog_submission" {
@@ -85,8 +99,8 @@ pub fn handle_submission(
     }
 
     match submission.callback_id.as_ref() {
-        "add" => add_submission(settings, submission),
-        "edit" => edit_submission(settings, submission),
+        "add" => add_submission(submission),
+        "edit" => edit_submission(submission),
         _ => Err(From::from(
             format!("No such submission: {}", submission.callback_id),
         )),
@@ -97,30 +111,24 @@ fn add_command() -> Result<Response, Box<std::error::Error>> {
     Ok(Response::Dialog(generate_add_dialog()))
 }
 
-fn get_command(
-    settings: &settings::Settings,
-    query: &str,
-) -> Result<Response, Box<std::error::Error>> {
+fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
-    let entry = get(query, &settings.data_path);
+    let entry = get(query, &SETTINGS.read()?.data_path);
     match entry {
         Some(e) => Ok(Response::AttachedMessage(generate_get_message(e))),
         None => Ok(Response::PlainText("IP not found".to_owned())),
     }
 }
 
-fn edit_command(
-    settings: &settings::Settings,
-    query: &str,
-) -> Result<Response, Box<std::error::Error>> {
+fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
-    let entry = match get(query, &settings.data_path) {
+    let entry = match get(query, &SETTINGS.read()?.data_path) {
         None => return Ok(Response::PlainText("IP not found".to_owned())),
         Some(e) => e,
     };
@@ -128,12 +136,9 @@ fn edit_command(
     Ok(Response::Dialog(generate_edit_dialog(entry)))
 }
 
-fn list_command(
-    settings: &settings::Settings,
-    query: &str,
-) -> Result<Response, Box<std::error::Error>> {
+fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::list;
-    let entries = list(query, &settings.data_path);
+    let entries = list(query, &SETTINGS.read()?.data_path);
     if entries.is_empty() {
         return Ok(Response::PlainText("IP not found".to_owned()));
     }
@@ -142,40 +147,31 @@ fn list_command(
     ))
 }
 
-fn issue_command(
-    settings: &settings::Settings,
-    ports: &str,
-) -> Result<Response, Box<std::error::Error>> {
+fn issue_command(ports: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::issue;
     match issue(
         &ports
             .split(' ')
             .filter_map(|p| p.parse::<u32>().ok())
             .collect::<Vec<u32>>(),
-        &settings.data_path,
+        &SETTINGS.read()?.data_path,
     ) {
         Some(e) => Ok(Response::Dialog(generate_edit_dialog(e))),
         None => Ok(Response::PlainText("No available IP".to_owned())),
     }
 }
 
-fn add_submission(
-    settings: &settings::Settings,
-    submission: slack::dialog::Submission,
-) -> Result<(), Box<std::error::Error>> {
+fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
-    add(&entry, &settings.data_path)?;
+    add(&entry, &SETTINGS.read()?.data_path)?;
     Ok(())
 }
 
-fn edit_submission(
-    settings: &settings::Settings,
-    submission: slack::dialog::Submission,
-) -> Result<(), Box<std::error::Error>> {
+fn edit_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
-    add(&entry, &settings.data_path)?;
+    add(&entry, &SETTINGS.read()?.data_path)?;
     Ok(())
 }
 
