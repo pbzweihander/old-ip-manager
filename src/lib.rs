@@ -50,6 +50,7 @@ pub fn handle_command(
         "get" => get_command(&data.text),
         "edit" => edit_command(&data.text),
         "list" => list_command(&data.text),
+        "issue" => issue_command(&data.text),
         _ => Err(From::from(format!("No such command: {}", command))),
     }?;
 
@@ -122,6 +123,18 @@ fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     Ok(Response::AttachedMessage(
         generate_list_message(query, entries),
     ))
+}
+
+fn issue_command(ports: &str) -> Result<Response, Box<std::error::Error>> {
+    use ip::issue;
+    match issue(&ports
+        .split(' ')
+        .filter_map(|p| p.parse::<u32>().ok())
+        .collect::<Vec<u32>>())
+    {
+        Some(e) => Ok(Response::Dialog(generate_edit_dialog(e))),
+        None => Ok(Response::PlainText("No available IP".to_owned())),
+    }
 }
 
 fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {

@@ -60,10 +60,7 @@ pub fn open(req: OpenRequest) -> Result<(), Box<::std::error::Error>> {
     let response: OpenResponse = super::request("dialog.open", &hm)?;
 
     if !response.ok {
-        return Err(Box::new(::std::io::Error::new(
-            ::std::io::ErrorKind::Other,
-            "Bad Slack Response",
-        )));
+        return Err(From::from("Bad Slack Response"));
     }
 
     Ok(())
@@ -207,5 +204,4 @@ pub mod element {
             Ok(Value::Object(map))
         }
     }
-
 }

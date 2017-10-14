@@ -147,7 +147,7 @@ pub fn list(query: &str) -> Vec<Query> {
 
 fn generate_query(entry: &Entry, q: &str) -> Option<Query> {
     if entry.ip.contains(q) {
-        Some(Query {
+        return Some(Query {
             ip: entry.ip.clone(),
             element: {
                 let mut s = String::new();
@@ -162,50 +162,58 @@ fn generate_query(entry: &Entry, q: &str) -> Option<Query> {
                 });
                 s
             },
-        })
-    } else if entry.domain.is_some() && entry.domain.as_ref().unwrap().contains(q) {
-        Some(Query {
-            ip: entry.ip.clone(),
-            element: entry.domain.as_ref().unwrap().clone(),
-        })
-    } else if entry.using && q == "사용중" {
-        Some(Query {
+        });
+    }
+    if let Some(ref domain) = entry.domain {
+        if domain.contains(q) {
+            return Some(Query {
+                ip: entry.ip.clone(),
+                element: entry.domain.as_ref().unwrap().clone(),
+            });
+        }
+    }
+    if entry.using && q == "사용중" {
+        return Some(Query {
             ip: entry.ip.clone(),
             element: "사용중".to_owned(),
-        })
-    } else if !entry.using && q == "미사용" {
-        Some(Query {
+        });
+    }
+    if !entry.using && q == "미사용" {
+        return Some(Query {
             ip: entry.ip.clone(),
             element: "미사용".to_owned(),
-        })
-    } else if {
-        let i = q.parse::<u32>();
-        i.is_ok() && entry.open_ports.contains(&i.unwrap())
-    } {
-        Some(Query {
-            ip: entry.ip.clone(),
-            element: entry.ports_as_string(),
-        })
-    } else if entry.description.is_some() && entry.description.as_ref().unwrap().contains(q) {
-        Some(Query {
+        });
+    }
+    if let Ok(i) = q.parse::<u32>() {
+        if entry.open_ports.contains(&i) {
+            return Some(Query {
+                ip: entry.ip.clone(),
+                element: entry.ports_as_string(),
+            });
+        }
+    }
+    if entry.description.is_some() && entry.description.as_ref().unwrap().contains(q) {
+        return Some(Query {
             ip: entry.ip.clone(),
             element: entry.description.as_ref().unwrap().clone(),
-        })
-    } else {
-        None
+        });
     }
+    None
 }
 
-pub fn issue(required_ports: &[u32]) -> Result<Entry, Box<::std::error::Error>> {
+pub fn issue(required_ports: &[u32]) -> Option<Entry> {
     use std::fs::{read_dir, DirEntry, File, ReadDir};
     use std::io::Read;
 
-    let dir_entries: ReadDir = read_dir("data")?;
+    let dir_entries: ReadDir = match read_dir("data") {
+        Ok(r) => r,
+        Err(_) => return None,
+    };
     let files: Vec<DirEntry> = dir_entries
         .filter(|e| e.is_ok())
         .map(|e| e.unwrap())
         .collect();
-    let entry = files
+    files
         .into_iter()
         .map(|f| {
             let mut file = File::open(f.path()).unwrap();
@@ -214,13 +222,8 @@ pub fn issue(required_ports: &[u32]) -> Result<Entry, Box<::std::error::Error>> 
             toml::from_str::<Entry>(&content).unwrap()
         })
         .find(|e| {
-            !e.using && required_ports.into_iter().all(|p| e.open_ports.contains(p))
-        });
-    match entry {
-        Some(e) => Ok(e),
-        None => Err(Box::new(::std::io::Error::new(
-            ::std::io::ErrorKind::Other,
-            "No available IP",
-        ))),
-    }
+            !e.using
+                && (required_ports.is_empty()
+                    || required_ports.into_iter().all(|p| e.open_ports.contains(p)))
+        })
 }
