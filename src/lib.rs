@@ -18,12 +18,20 @@ pub mod settings {
     pub struct Settings {
         pub verification_token: String,
         pub api_token: String,
+        pub data_path: String,
     }
 
     impl Settings {
         pub fn new() -> Result<Settings, config::ConfigError> {
-            let mut settings = config::Config::new();
-            settings.merge(config::File::with_name("settings"))?;
+            use std::env::args;
+            use std::path::Path;
+            use self::config::{Config, File};
+            let mut settings = Config::new();
+            settings.merge(if args().len() >= 2 {
+                File::from(Path::new(&args().nth(1).unwrap()))
+            } else {
+                File::with_name("settings")
+            })?;
             settings.try_into::<Settings>()
         }
     }
@@ -47,10 +55,10 @@ pub fn handle_command(
 
     let result = match command {
         "add" => add_command(),
-        "get" => get_command(&data.text),
-        "edit" => edit_command(&data.text),
-        "list" => list_command(&data.text),
-        "issue" => issue_command(&data.text),
+        "get" => get_command(settings, &data.text),
+        "edit" => edit_command(settings, &data.text),
+        "list" => list_command(settings, &data.text),
+        "issue" => issue_command(settings, &data.text),
         _ => Err(From::from(format!("No such command: {}", command))),
     }?;
 
@@ -77,8 +85,8 @@ pub fn handle_submission(
     }
 
     match submission.callback_id.as_ref() {
-        "add" => add_submission(submission),
-        "edit" => edit_submission(submission),
+        "add" => add_submission(settings, submission),
+        "edit" => edit_submission(settings, submission),
         _ => Err(From::from(
             format!("No such submission: {}", submission.callback_id),
         )),
@@ -89,24 +97,30 @@ fn add_command() -> Result<Response, Box<std::error::Error>> {
     Ok(Response::Dialog(generate_add_dialog()))
 }
 
-fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+fn get_command(
+    settings: &settings::Settings,
+    query: &str,
+) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
-    let entry = get(query);
+    let entry = get(query, &settings.data_path);
     match entry {
         Some(e) => Ok(Response::AttachedMessage(generate_get_message(e))),
         None => Ok(Response::PlainText("IP not found".to_owned())),
     }
 }
 
-fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+fn edit_command(
+    settings: &settings::Settings,
+    query: &str,
+) -> Result<Response, Box<std::error::Error>> {
     use ip::get;
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
-    let entry = match get(query) {
+    let entry = match get(query, &settings.data_path) {
         None => return Ok(Response::PlainText("IP not found".to_owned())),
         Some(e) => e,
     };
@@ -114,9 +128,12 @@ fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     Ok(Response::Dialog(generate_edit_dialog(entry)))
 }
 
-fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+fn list_command(
+    settings: &settings::Settings,
+    query: &str,
+) -> Result<Response, Box<std::error::Error>> {
     use ip::list;
-    let entries = list(query);
+    let entries = list(query, &settings.data_path);
     if entries.is_empty() {
         return Ok(Response::PlainText("IP not found".to_owned()));
     }
@@ -125,29 +142,40 @@ fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     ))
 }
 
-fn issue_command(ports: &str) -> Result<Response, Box<std::error::Error>> {
+fn issue_command(
+    settings: &settings::Settings,
+    ports: &str,
+) -> Result<Response, Box<std::error::Error>> {
     use ip::issue;
-    match issue(&ports
-        .split(' ')
-        .filter_map(|p| p.parse::<u32>().ok())
-        .collect::<Vec<u32>>())
-    {
+    match issue(
+        &ports
+            .split(' ')
+            .filter_map(|p| p.parse::<u32>().ok())
+            .collect::<Vec<u32>>(),
+        &settings.data_path,
+    ) {
         Some(e) => Ok(Response::Dialog(generate_edit_dialog(e))),
         None => Ok(Response::PlainText("No available IP".to_owned())),
     }
 }
 
-fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
+fn add_submission(
+    settings: &settings::Settings,
+    submission: slack::dialog::Submission,
+) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
-    add(&entry)?;
+    add(&entry, &settings.data_path)?;
     Ok(())
 }
 
-fn edit_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
+fn edit_submission(
+    settings: &settings::Settings,
+    submission: slack::dialog::Submission,
+) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
-    add(&entry)?;
+    add(&entry, &settings.data_path)?;
     Ok(())
 }
 

@@ -62,13 +62,13 @@ impl ::std::convert::Into<Entry> for RawEntry {
     }
 }
 
-pub fn add(entry: &Entry) -> Result<(), Box<::std::error::Error>> {
+pub fn add(entry: &Entry, data_path: &str) -> Result<(), Box<::std::error::Error>> {
     use std::fs::File;
     use std::path::Path;
     use std::io::Write;
 
     let s = toml::to_string_pretty(entry)?;
-    let spath = format!("data/{}.toml", entry.ip);
+    let spath = format!("{}/{}.toml", data_path, entry.ip);
     let p = Path::new(&spath);
     let mut file: File = File::create(&p)?;
     file.write_all(s.as_bytes())?;
@@ -76,12 +76,12 @@ pub fn add(entry: &Entry) -> Result<(), Box<::std::error::Error>> {
     Ok(())
 }
 
-pub fn get(ip: &str) -> Option<Entry> {
+pub fn get(ip: &str, data_path: &str) -> Option<Entry> {
     use std::fs::File;
     use std::path::Path;
     use std::io::Read;
 
-    let spath = format!("data/{}.toml", ip);
+    let spath = format!("{}/{}.toml", data_path, ip);
     let p = Path::new(&spath);
     let mut file: File = match File::open(&p) {
         Ok(f) => f,
@@ -94,11 +94,11 @@ pub fn get(ip: &str) -> Option<Entry> {
     toml::from_str(&content).ok()
 }
 
-pub fn list(query: &str) -> Vec<Query> {
+pub fn list(query: &str, data_path: &str) -> Vec<Query> {
     use std::fs::{read_dir, DirEntry, File, ReadDir};
     use std::io::Read;
 
-    let dir_entries: ReadDir = match read_dir("data") {
+    let dir_entries: ReadDir = match read_dir(data_path) {
         Ok(d) => d,
         Err(_) => return vec![],
     };
@@ -201,11 +201,11 @@ fn generate_query(entry: &Entry, q: &str) -> Option<Query> {
     None
 }
 
-pub fn issue(required_ports: &[u32]) -> Option<Entry> {
+pub fn issue(required_ports: &[u32], data_path: &str) -> Option<Entry> {
     use std::fs::{read_dir, DirEntry, File, ReadDir};
     use std::io::Read;
 
-    let dir_entries: ReadDir = match read_dir("data") {
+    let dir_entries: ReadDir = match read_dir(data_path) {
         Ok(r) => r,
         Err(_) => return None,
     };
