@@ -22,7 +22,7 @@ pub mod settings {
     }
 
     impl Settings {
-        pub fn new() -> Result<Settings, config::ConfigError> {
+        pub fn try_new() -> Result<Settings, config::ConfigError> {
             use std::env::args;
             use std::path::Path;
             use self::config::{Config, File};
@@ -34,23 +34,28 @@ pub mod settings {
             })?;
             settings.try_into::<Settings>()
         }
+
+        pub fn assure_new() -> Settings {
+            use std::fs::read_dir;
+            let s = match Settings::try_new() {
+                Ok(s) => s,
+                Err(e) => panic!("Settings file parse error!, {}", e),
+            };
+            if let Err(e) = read_dir(&s.data_path) {
+                panic!("Invalid data folder. Check settings file!, {}", e);
+            }
+            s
+        }
     }
 }
 
 use std::sync::RwLock;
 
 lazy_static! {
-    static ref SETTINGS: RwLock<settings::Settings> = RwLock::new(match settings::Settings::new() {
-        Ok(s) => s,
-        Err(e) => panic!("Settings file parse error!, {}", e)
-    });
+    static ref SETTINGS: RwLock<settings::Settings> = RwLock::new(settings::Settings::assure_new());
 }
 
 pub fn validate_data_path() {
-    use std::fs::read_dir;
-    if read_dir(&SETTINGS.read().unwrap().data_path).is_err() {
-        panic!("Invalid data folder. Check settings file!");
-    }
 }
 
 pub enum Response {
