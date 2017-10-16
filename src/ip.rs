@@ -1,6 +1,8 @@
 extern crate serde_derive;
 extern crate toml;
 
+use super::error::Result;
+
 #[derive(Serialize, Deserialize)]
 pub struct Entry {
     pub ip: String,
@@ -36,7 +38,7 @@ pub struct Query {
     pub element: String,
 }
 
-impl ::std::convert::Into<Entry> for RawEntry {
+impl Into<Entry> for RawEntry {
     fn into(self) -> Entry {
         let using = self.using == "true";
         let open_ports = match self.open_ports {
@@ -62,7 +64,7 @@ impl ::std::convert::Into<Entry> for RawEntry {
     }
 }
 
-pub fn add(entry: &Entry, data_path: &str) -> Result<(), Box<::std::error::Error>> {
+pub fn add(entry: &Entry, data_path: &str) -> Result<()> {
     use std::fs::File;
     use std::path::Path;
     use std::io::Write;
@@ -228,7 +230,7 @@ pub fn issue(required_ports: &[u32], data_path: &str) -> Option<Entry> {
         })
 }
 
-pub fn delete(ip: &str, data_path: &str) -> Result<(), Box<::std::error::Error>> {
+pub fn delete(ip: &str, data_path: &str) -> Result<()> {
     use std::fs::remove_file;
     use std::path::Path;
     let spath = format!("{}/{}.toml", data_path, ip);

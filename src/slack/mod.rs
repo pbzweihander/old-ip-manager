@@ -6,6 +6,8 @@ extern crate serde_json;
 pub mod slash_command;
 pub mod dialog;
 
+use super::error::Result;
+
 #[derive(Serialize, Deserialize)]
 pub struct Channel {
     pub id: String,
@@ -52,7 +54,7 @@ fn encode_url(url: &str) -> String {
 pub fn request<R: serde::de::DeserializeOwned>(
     api: &str,
     argument: &::std::collections::HashMap<String, String>,
-) -> Result<R, Box<::std::error::Error>> {
+) -> Result<R> {
     let mut uri = String::from("https://slack.com/api/");
     uri.push_str(api);
     uri.push('?');
