@@ -8,6 +8,11 @@ extern crate rocket_contrib;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate error_chain;
+
+pub mod error;
+pub use error::{ErrorKind, Result};
 
 pub mod ip;
 pub mod slack;
@@ -53,16 +58,22 @@ lazy_static! {
     static ref SETTINGS: std::sync::RwLock<settings::Settings> = std::sync::RwLock::new(settings::Settings::assure_new());
 }
 
-fn verification_token() -> Result<String, Box<std::error::Error>> {
-    Ok(SETTINGS.read()?.verification_token.clone())
+fn verification_token() -> Result<String> {
+    SETTINGS.read()
+        .map(|settings| settings.verification_token.clone())
+        .map_err(|_| ErrorKind::Poisoned("verification_token").into())
 }
 
-fn api_token() -> Result<String, Box<std::error::Error>> {
-    Ok(SETTINGS.read()?.api_token.clone())
+fn api_token() -> Result<String> {
+    SETTINGS.read()
+        .map(|settings| settings.api_token.clone())
+        .map_err(|_| ErrorKind::Poisoned("api_token").into())
 }
 
-fn data_path() -> Result<String, Box<std::error::Error>> {
-    Ok(SETTINGS.read()?.data_path.clone())
+fn data_path() -> Result<String> {
+    SETTINGS.read()
+        .map(|settings| settings.data_path.clone())
+        .map_err(|_| ErrorKind::Poisoned("data_path").into())
 }
 
 pub enum Response {
@@ -75,9 +86,9 @@ pub enum Response {
 pub fn handle_command(
     command: &str,
     data: slack::slash_command::Request,
-) -> Result<serde_json::Value, Box<std::error::Error>> {
+) -> Result<serde_json::Value> {
     if verification_token()? != data.token {
-        return Err(From::from("Invalid token".to_owned()));
+        bail!(ErrorKind::InvalidToken);
     }
 
     let result = match command {
@@ -87,7 +98,7 @@ pub fn handle_command(
         "list" => list_command(&data.text),
         "issue" => issue_command(&data.text),
         "del" => del_command(&data.text),
-        _ => Err(From::from(format!("No such command: {}", command))),
+        _ => bail!(ErrorKind::CommandNotFound(command.to_string())),
     }?;
 
     match result {
@@ -103,28 +114,26 @@ pub fn handle_command(
 
 pub fn handle_submission(
     submission: slack::dialog::Submission,
-) -> Result<(), Box<std::error::Error>> {
+) -> Result<()> {
     if verification_token()? != submission.token {
-        return Err(From::from("Invalid token".to_owned()));
+        bail!(ErrorKind::InvalidToken);
     }
     if submission.submission_type != "dialog_submission" {
-        return Err(From::from("Invalid submission".to_owned()));
+        bail!(ErrorKind::InvalidSubmission);
     }
 
     match submission.callback_id.as_ref() {
         "add" => add_submission(submission),
         "edit" => edit_submission(submission),
-        _ => Err(From::from(
-            format!("No such submission: {}", submission.callback_id),
-        )),
+        _ => bail!(ErrorKind::SubmissionNotFound(submission.callback_id)),
     }
 }
 
-fn add_command() -> Result<Response, Box<std::error::Error>> {
+fn add_command() -> Result<Response> {
     Ok(Response::Dialog(generate_add_dialog()))
 }
 
-fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+fn get_command(query: &str) -> Result<Response> {
     use ip::get;
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
@@ -136,7 +145,7 @@ fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     }
 }
 
-fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+fn edit_command(query: &str) -> Result<Response> {
     use ip::get;
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
@@ -149,7 +158,7 @@ fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     Ok(Response::Dialog(generate_edit_dialog(entry)))
 }
 
-fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
+fn list_command(query: &str) -> Result<Response> {
     use ip::list;
     let entries = list(query, &data_path()?);
     if entries.is_empty() {
@@ -160,7 +169,7 @@ fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     ))
 }
 
-fn issue_command(ports: &str) -> Result<Response, Box<std::error::Error>> {
+fn issue_command(ports: &str) -> Result<Response> {
     use ip::issue;
     match issue(
         &ports
@@ -174,7 +183,7 @@ fn issue_command(ports: &str) -> Result<Response, Box<std::error::Error>> {
     }
 }
 
-fn del_command(ip: &str) -> Result<Response, Box<std::error::Error>> {
+fn del_command(ip: &str) -> Result<Response> {
     use ip::delete;
     if ip.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
@@ -183,14 +192,14 @@ fn del_command(ip: &str) -> Result<Response, Box<std::error::Error>> {
     Ok(Response::PlainText(format!("IP {} deleted", ip)))
 }
 
-fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
+fn add_submission(submission: slack::dialog::Submission) -> Result<()> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
     add(&entry, &data_path()?)?;
     Ok(())
 }
 
-fn edit_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
+fn edit_submission(submission: slack::dialog::Submission) -> Result<()> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
     add(&entry, &data_path()?)?;
@@ -271,7 +280,7 @@ fn show_dialog(
     token: &str,
     dialog: slack::dialog::Dialog,
     trigger_id: &str,
-) -> Result<(), Box<std::error::Error>> {
+) -> Result<()> {
     let request = slack::dialog::OpenRequest {
         token: token.to_owned(),
         dialog,

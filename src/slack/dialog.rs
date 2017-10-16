@@ -52,7 +52,7 @@ pub struct SubmissionError {
     pub error: String,
 }
 
-pub fn open(req: OpenRequest) -> Result<(), Box<::std::error::Error>> {
+pub fn open(req: OpenRequest) -> super::super::error::Result<()> {
     let mut hm = ::std::collections::HashMap::new();
     hm.insert("token".to_owned(), req.token);
     hm.insert("dialog".to_owned(), serde_json::to_string(&req.dialog)?);
