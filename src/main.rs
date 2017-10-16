@@ -6,7 +6,7 @@ extern crate rocket_contrib;
 extern crate serde_json;
 
 use rocket::request::LenientForm;
-use ip_manager::{handle_command, handle_submission, validate_data_path};
+use ip_manager::{handle_command, handle_submission};
 use ip_manager::slack::slash_command::Request;
 use ip_manager::slack::dialog::{Submission, SubmissionResponse};
 
@@ -15,8 +15,6 @@ fn main() {
 }
 
 fn try_main() -> Result<(), Box<std::error::Error>> {
-    validate_data_path();
-
     rocket::ignite()
         .mount("/ip-manager/command", routes![command_request])
         .mount("/ip-manager/submission", routes![dialog_response])

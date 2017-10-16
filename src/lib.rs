@@ -49,13 +49,20 @@ pub mod settings {
     }
 }
 
-use std::sync::RwLock;
-
 lazy_static! {
-    static ref SETTINGS: RwLock<settings::Settings> = RwLock::new(settings::Settings::assure_new());
+    static ref SETTINGS: std::sync::RwLock<settings::Settings> = std::sync::RwLock::new(settings::Settings::assure_new());
 }
 
-pub fn validate_data_path() {
+fn verification_token() -> Result<String, Box<std::error::Error>> {
+    Ok(SETTINGS.read()?.verification_token.clone())
+}
+
+fn api_token() -> Result<String, Box<std::error::Error>> {
+    Ok(SETTINGS.read()?.api_token.clone())
+}
+
+fn data_path() -> Result<String, Box<std::error::Error>> {
+    Ok(SETTINGS.read()?.data_path.clone())
 }
 
 pub enum Response {
@@ -69,7 +76,7 @@ pub fn handle_command(
     command: &str,
     data: slack::slash_command::Request,
 ) -> Result<serde_json::Value, Box<std::error::Error>> {
-    if SETTINGS.read()?.verification_token != data.token {
+    if verification_token()? != data.token {
         return Err(From::from("Invalid token".to_owned()));
     }
 
@@ -79,13 +86,14 @@ pub fn handle_command(
         "edit" => edit_command(&data.text),
         "list" => list_command(&data.text),
         "issue" => issue_command(&data.text),
+        "del" => del_command(&data.text),
         _ => Err(From::from(format!("No such command: {}", command))),
     }?;
 
     match result {
         Response::PlainText(t) => Ok(json!({ "text": t })),
         Response::Dialog(d) => {
-            show_dialog(&SETTINGS.read()?.api_token, d, &data.trigger_id)?;
+            show_dialog(&api_token()?, d, &data.trigger_id)?;
             Ok(json!({ "text": "Dialog opened!" }))
         }
         Response::AttachedMessage(m) => Ok(serde_json::to_value(m)?),
@@ -96,7 +104,7 @@ pub fn handle_command(
 pub fn handle_submission(
     submission: slack::dialog::Submission,
 ) -> Result<(), Box<std::error::Error>> {
-    if SETTINGS.read()?.verification_token != submission.token {
+    if verification_token()? != submission.token {
         return Err(From::from("Invalid token".to_owned()));
     }
     if submission.submission_type != "dialog_submission" {
@@ -121,7 +129,7 @@ fn get_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
-    let entry = get(query, &SETTINGS.read()?.data_path);
+    let entry = get(query, &data_path()?);
     match entry {
         Some(e) => Ok(Response::AttachedMessage(generate_get_message(e))),
         None => Ok(Response::PlainText("IP not found".to_owned())),
@@ -133,7 +141,7 @@ fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     if query.is_empty() {
         return Ok(Response::PlainText("Invalid argument".to_owned()));
     }
-    let entry = match get(query, &SETTINGS.read()?.data_path) {
+    let entry = match get(query, &data_path()?) {
         None => return Ok(Response::PlainText("IP not found".to_owned())),
         Some(e) => e,
     };
@@ -143,7 +151,7 @@ fn edit_command(query: &str) -> Result<Response, Box<std::error::Error>> {
 
 fn list_command(query: &str) -> Result<Response, Box<std::error::Error>> {
     use ip::list;
-    let entries = list(query, &SETTINGS.read()?.data_path);
+    let entries = list(query, &data_path()?);
     if entries.is_empty() {
         return Ok(Response::PlainText("IP not found".to_owned()));
     }
@@ -159,24 +167,33 @@ fn issue_command(ports: &str) -> Result<Response, Box<std::error::Error>> {
             .split(' ')
             .filter_map(|p| p.parse::<u32>().ok())
             .collect::<Vec<u32>>(),
-        &SETTINGS.read()?.data_path,
+        &data_path()?,
     ) {
         Some(e) => Ok(Response::Dialog(generate_edit_dialog(e))),
         None => Ok(Response::PlainText("No available IP".to_owned())),
     }
 }
 
+fn del_command(ip: &str) -> Result<Response, Box<std::error::Error>> {
+    use ip::delete;
+    if ip.is_empty() {
+        return Ok(Response::PlainText("Invalid argument".to_owned()));
+    }
+    delete(ip, &data_path()?)?;
+    Ok(Response::PlainText(format!("IP {} deleted", ip)))
+}
+
 fn add_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
-    add(&entry, &SETTINGS.read()?.data_path)?;
+    add(&entry, &data_path()?)?;
     Ok(())
 }
 
 fn edit_submission(submission: slack::dialog::Submission) -> Result<(), Box<std::error::Error>> {
     use ip::{add, Entry};
     let entry: Entry = submission.submission.into();
-    add(&entry, &SETTINGS.read()?.data_path)?;
+    add(&entry, &data_path()?)?;
     Ok(())
 }
 

@@ -227,3 +227,12 @@ pub fn issue(required_ports: &[u32], data_path: &str) -> Option<Entry> {
                     || required_ports.into_iter().all(|p| e.open_ports.contains(p)))
         })
 }
+
+pub fn delete(ip: &str, data_path: &str) -> Result<(), Box<::std::error::Error>> {
+    use std::fs::remove_file;
+    use std::path::Path;
+    let spath = format!("{}/{}.toml", data_path, ip);
+    let p = Path::new(&spath);
+    remove_file(p)?;
+    Ok(())
+}

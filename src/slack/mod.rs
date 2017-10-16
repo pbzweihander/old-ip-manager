@@ -3,6 +3,9 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
+pub mod slash_command;
+pub mod dialog;
+
 #[derive(Serialize, Deserialize)]
 pub struct Channel {
     pub id: String,
@@ -67,6 +70,3 @@ pub fn request<R: serde::de::DeserializeOwned>(
 
     Ok(parsed)
 }
-
-pub mod slash_command;
-pub mod dialog;
