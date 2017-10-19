@@ -53,3 +53,7 @@ using = true | false
 open_ports = []
 description = "DESCRIPTION" # optional
 ```
+
+------
+
+[MIT License](LICENSE)
