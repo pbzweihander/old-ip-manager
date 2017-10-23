@@ -19,19 +19,14 @@ fn main() {
 }
 
 #[post("/<command>", data = "<form>")]
-fn command_request(
-    command: String,
-    form: LenientForm<Request>,
-) -> Result<rocket_contrib::Json> {
+fn command_request(command: String, form: LenientForm<Request>) -> Result<rocket_contrib::Json> {
     let data = form.into_inner();
     let json = handle_command(&command, data)?;
     Ok(rocket_contrib::Json(json))
 }
 
 #[post("/", data = "<form>")]
-fn dialog_response(
-    form: LenientForm<SubmissionResponse>,
-) -> Result<String> {
+fn dialog_response(form: LenientForm<SubmissionResponse>) -> Result<String> {
     let data: Submission = serde_json::from_str(&form.into_inner().payload).unwrap();
     handle_submission(data)?;
     Ok("".to_owned())

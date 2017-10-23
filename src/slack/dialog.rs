@@ -16,7 +16,7 @@ pub struct OpenResponse {
 pub struct Dialog {
     pub callback_id: String,
     pub title: String,
-    pub elements: Vec<serde_json::Value>,
+    pub elements: Vec<element::Element>,
 }
 
 impl Dialog {
@@ -67,32 +67,17 @@ pub fn open(req: OpenRequest) -> super::super::error::Result<()> {
 }
 
 pub mod element {
-    extern crate serde_json;
+    extern crate serde_derive;
 
-    use self::serde_json::Value;
-    use self::serde_json::Map;
-    use self::serde_json::Result;
-
-    // pub trait Element {
-    //     fn into_json(self) -> Result<Value>;
-    // }
-
+    #[derive(Serialize)]
+    #[serde(tag = "type")]
     pub enum Element {
-        Text(TextElement),
-        TextArea(TextAreaElement),
-        Select(SelectElement),
+        #[serde(rename = "text")] Text(TextElement),
+        #[serde(rename = "textarea")] TextArea(TextAreaElement),
+        #[serde(rename = "select")] Select(SelectElement),
     }
 
-    impl Element {
-        pub fn into_json(self) -> Result<Value> {
-            match self {
-                Element::Text(e) => e.into_json(),
-                Element::TextArea(e) => e.into_json(),
-                Element::Select(e) => e.into_json(),
-            }
-        }
-    }
-
+    #[derive(Serialize)]
     pub struct TextElement {
         pub label: String,
         pub name: String,
@@ -103,34 +88,7 @@ pub mod element {
         pub placeholder: Option<String>,
     }
 
-    impl TextElement {
-        fn into_json(self) -> Result<Value> {
-            let mut map = Map::new();
-            map.insert("label".to_owned(), serde_json::to_value(self.label)?);
-            map.insert("name".to_owned(), serde_json::to_value(self.name)?);
-            map.insert("type".to_owned(), serde_json::to_value("text")?);
-            if let Some(optional) = self.optional {
-                map.insert(
-                    "optional".to_owned(),
-                    serde_json::to_value(if optional { "true" } else { "false" })?,
-                );
-            }
-            if let Some(ref hint) = self.hint {
-                map.insert("hint".to_owned(), serde_json::to_value(hint)?);
-            }
-            if let Some(ref subtype) = self.subtype {
-                map.insert("subtype".to_owned(), serde_json::to_value(subtype)?);
-            }
-            if let Some(ref value) = self.value {
-                map.insert("value".to_owned(), serde_json::to_value(value)?);
-            }
-            if let Some(ref placeholder) = self.placeholder {
-                map.insert("placeholder".to_owned(), serde_json::to_value(placeholder)?);
-            }
-            Ok(Value::Object(map))
-        }
-    }
-
+    #[derive(Serialize)]
     pub struct TextAreaElement {
         pub label: String,
         pub name: String,
@@ -141,34 +99,7 @@ pub mod element {
         pub placeholder: Option<String>,
     }
 
-    impl TextAreaElement {
-        fn into_json(self) -> Result<Value> {
-            let mut map = Map::new();
-            map.insert("label".to_owned(), serde_json::to_value(self.label)?);
-            map.insert("name".to_owned(), serde_json::to_value(self.name)?);
-            map.insert("type".to_owned(), serde_json::to_value("textarea")?);
-            if let Some(optional) = self.optional {
-                map.insert(
-                    "optional".to_owned(),
-                    serde_json::to_value(if optional { "true" } else { "false" })?,
-                );
-            }
-            if let Some(ref hint) = self.hint {
-                map.insert("hint".to_owned(), serde_json::to_value(hint)?);
-            }
-            if let Some(ref subtype) = self.subtype {
-                map.insert("subtype".to_owned(), serde_json::to_value(subtype)?);
-            }
-            if let Some(ref value) = self.value {
-                map.insert("value".to_owned(), serde_json::to_value(value)?);
-            }
-            if let Some(ref placeholder) = self.placeholder {
-                map.insert("placeholder".to_owned(), serde_json::to_value(placeholder)?);
-            }
-            Ok(Value::Object(map))
-        }
-    }
-
+    #[derive(Serialize)]
     pub struct SelectElement {
         pub label: String,
         pub name: String,
@@ -182,26 +113,5 @@ pub mod element {
     pub struct SelectOption {
         pub label: String,
         pub value: String,
-    }
-
-    impl SelectElement {
-        fn into_json(self) -> Result<Value> {
-            let mut map = Map::new();
-            map.insert("label".to_owned(), serde_json::to_value(self.label)?);
-            map.insert("name".to_owned(), serde_json::to_value(self.name)?);
-            map.insert("type".to_owned(), serde_json::to_value("select")?);
-            if let Some(optional) = self.optional {
-                map.insert(
-                    "optional".to_owned(),
-                    serde_json::to_value(if optional { "true" } else { "false" })?,
-                );
-            }
-            map.insert("options".to_owned(), serde_json::to_value(self.options)?);
-            map.insert("value".to_owned(), serde_json::to_value(self.value)?);
-            if let Some(placeholder) = self.placeholder {
-                map.insert("placeholder".to_owned(), serde_json::to_value(placeholder)?);
-            }
-            Ok(Value::Object(map))
-        }
     }
 }

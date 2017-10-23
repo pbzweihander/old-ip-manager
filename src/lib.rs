@@ -1,6 +1,8 @@
 #![feature(plugin, custom_derive, decl_macro)]
 #![plugin(rocket_codegen)]
 #[macro_use]
+extern crate error_chain;
+#[macro_use]
 extern crate lazy_static;
 extern crate rocket;
 extern crate rocket_contrib;
@@ -8,8 +10,6 @@ extern crate rocket_contrib;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
-#[macro_use]
-extern crate error_chain;
 
 pub mod error;
 pub use error::{ErrorKind, Result};
@@ -59,19 +59,22 @@ lazy_static! {
 }
 
 fn verification_token() -> Result<String> {
-    SETTINGS.read()
+    SETTINGS
+        .read()
         .map(|settings| settings.verification_token.clone())
         .map_err(|_| ErrorKind::Poisoned("verification_token").into())
 }
 
 fn api_token() -> Result<String> {
-    SETTINGS.read()
+    SETTINGS
+        .read()
         .map(|settings| settings.api_token.clone())
         .map_err(|_| ErrorKind::Poisoned("api_token").into())
 }
 
 fn data_path() -> Result<String> {
-    SETTINGS.read()
+    SETTINGS
+        .read()
         .map(|settings| settings.data_path.clone())
         .map_err(|_| ErrorKind::Poisoned("data_path").into())
 }
@@ -112,9 +115,7 @@ pub fn handle_command(
     }
 }
 
-pub fn handle_submission(
-    submission: slack::dialog::Submission,
-) -> Result<()> {
+pub fn handle_submission(submission: slack::dialog::Submission) -> Result<()> {
     if verification_token()? != submission.token {
         bail!(ErrorKind::InvalidToken);
     }
@@ -276,11 +277,7 @@ fn generate_list_message(query: &str, queries: Vec<ip::Query>) -> slack::Attache
     m
 }
 
-fn show_dialog(
-    token: &str,
-    dialog: slack::dialog::Dialog,
-    trigger_id: &str,
-) -> Result<()> {
+fn show_dialog(token: &str, dialog: slack::dialog::Dialog, trigger_id: &str) -> Result<()> {
     let request = slack::dialog::OpenRequest {
         token: token.to_owned(),
         dialog,
@@ -293,21 +290,11 @@ fn show_dialog(
 fn generate_add_dialog() -> slack::dialog::Dialog {
     let mut dialog = slack::dialog::Dialog::new("add".to_owned(), "IP 추가".to_owned());
 
-    dialog
-        .elements
-        .push(generate_ip_text(None).into_json().unwrap());
-    dialog
-        .elements
-        .push(generate_domain_text(None).into_json().unwrap());
-    dialog
-        .elements
-        .push(generate_using_select(None).into_json().unwrap());
-    dialog
-        .elements
-        .push(generate_open_ports_text(None).into_json().unwrap());
-    dialog
-        .elements
-        .push(generate_description_textarea(None).into_json().unwrap());
+    dialog.elements.push(generate_ip_text(None));
+    dialog.elements.push(generate_domain_text(None));
+    dialog.elements.push(generate_using_select(None));
+    dialog.elements.push(generate_open_ports_text(None));
+    dialog.elements.push(generate_description_textarea(None));
 
     dialog
 }
@@ -316,32 +303,21 @@ fn generate_edit_dialog(entry: ip::Entry) -> slack::dialog::Dialog {
     let mut dialog = slack::dialog::Dialog::new("edit".to_owned(), "IP 수정".to_owned());
     let joined_ports = entry.ports_as_string();
 
+    dialog.elements.push(generate_ip_text(Some(entry.ip)));
+    dialog.elements.push(generate_domain_text(entry.domain));
+    dialog.elements.push(generate_using_select(
+        Some(if entry.using { "true" } else { "false" }.to_owned()),
+    ));
+    dialog.elements.push(generate_open_ports_text({
+        if !entry.open_ports.is_empty() {
+            Some(joined_ports)
+        } else {
+            None
+        }
+    }));
     dialog
         .elements
-        .push(generate_ip_text(Some(entry.ip)).into_json().unwrap());
-    dialog
-        .elements
-        .push(generate_domain_text(entry.domain).into_json().unwrap());
-    dialog.elements.push(
-        generate_using_select(Some(if entry.using { "true" } else { "false" }.to_owned()))
-            .into_json()
-            .unwrap(),
-    );
-    dialog.elements.push(
-        generate_open_ports_text({
-            if !entry.open_ports.is_empty() {
-                Some(joined_ports)
-            } else {
-                None
-            }
-        }).into_json()
-            .unwrap(),
-    );
-    dialog.elements.push(
-        generate_description_textarea(entry.description)
-            .into_json()
-            .unwrap(),
-    );
+        .push(generate_description_textarea(entry.description));
 
     dialog
 }
