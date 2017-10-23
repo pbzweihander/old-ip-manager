@@ -1,6 +1,6 @@
 extern crate config;
-extern crate serde_json;
 extern crate reqwest;
+extern crate serde_json;
 extern crate toml;
 
 error_chain! {
