@@ -13,9 +13,9 @@ use ip_manager::slack::dialog::{Submission, SubmissionResponse};
 
 fn main() {
     rocket::ignite()
-        .mount("/ip-manager/command", routes![command_request])
-        .mount("/ip-manager/submission", routes![dialog_response])
-        .mount("/ip-manager/ping", routes![ping])
+        .mount("/command", routes![command_request])
+        .mount("/submission", routes![dialog_response])
+        .mount("/ping", routes![ping])
         .launch();
 }
 
