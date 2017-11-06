@@ -15,6 +15,7 @@ fn main() {
     rocket::ignite()
         .mount("/ip-manager/command", routes![command_request])
         .mount("/ip-manager/submission", routes![dialog_response])
+        .mount("/ip-manager/ping", routes![ping])
         .launch();
 }
 
@@ -30,4 +31,9 @@ fn dialog_response(form: LenientForm<SubmissionResponse>) -> Result<String> {
     let data: Submission = serde_json::from_str(&form.into_inner().payload).unwrap();
     handle_submission(data)?;
     Ok("".to_owned())
+}
+
+#[post("/")]
+fn ping() -> String {
+    "pong".to_owned()
 }
